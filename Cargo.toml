@@ -3,6 +3,8 @@ name = "nus3audio"
 version = "1.0.0"
 authors = ["jam1garner <jam1.mcleod@hotmail.com>"]
 edition = "2018"
+repository = "https://github.com/jam1garner/libnus3audio"
+license = "MIT"
 
 [dependencies]
 itertools = "0.8"
