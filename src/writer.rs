@@ -77,6 +77,7 @@ impl Nus3audioFile {
         let pack_section_start = string_section_start + string_section_size as usize
                                     + junk_size + "PACK".len() + size_of::<u32>();
 
+        let mut pack_section_size_no_pad = 0u32;
         let mut pack_section_size = 0u32;
         let mut existing_files: HashMap<u32, (u32, u32)> = HashMap::new();
         let mut files_to_pack = vec![];
@@ -91,6 +92,7 @@ impl Nus3audioFile {
                                  file.data.len() as u32);
                         existing_files.insert(hash, pair);
                         files_to_pack.push(&file.data[..]);
+                        pack_section_size_no_pad = pack_section_size + ((file.data.len() + 0xF) / 0x10) as u32 * 0x10;
                         pack_section_size += ((file.data.len() + 0xF) / 0x10) as u32 * 0x10;
                         
                         pair
@@ -98,7 +100,11 @@ impl Nus3audioFile {
                 };
             file_offsets.push(offset_pair);
         }
-        
+
+        if self.files.len() == 1 {
+            pack_section_size = pack_section_size_no_pad;
+        }
+
         let filesize = pack_section_start as u32 + pack_section_size;
 
         // Actually write to file
@@ -134,7 +140,9 @@ impl Nus3audioFile {
         write!(pack_section_size);
         for file in files_to_pack.iter() {
             write!(&file[..]);
-            write!(vec![0u8; (0x10 - (file.len() % 0x10)) % 0x10 ]);
+            if self.files.len() != 1 {
+                write!(vec![0u8; (0x10 - (file.len() % 0x10)) % 0x10 ]);
+            }
         }
     }
 }
