@@ -35,11 +35,17 @@ impl Nus3audioFile {
                                     + junk_size + "PACK".len() + size_of::<u32>();
 
         let mut pack_section_size = 0u32;
+        let mut pack_section_size_no_pad = 0u32;
         for file in self.files.iter() {
+            pack_section_size_no_pad = pack_section_size + file.data.len() as u32;
             pack_section_size += ((file.data.len() + 0xF) / 0x10) as u32 * 0x10;
         }
         
-        pack_section_start + pack_section_size as usize
+        pack_section_start + if self.files.len() == 1 {
+            pack_section_size_no_pad
+        } else {
+            pack_section_size
+        } as usize
     }
     
     pub fn write(&self, f: &mut Vec<u8>) {
@@ -92,7 +98,7 @@ impl Nus3audioFile {
                                  file.data.len() as u32);
                         existing_files.insert(hash, pair);
                         files_to_pack.push(&file.data[..]);
-                        pack_section_size_no_pad = pack_section_size + ((file.data.len() + 0xF) / 0x10) as u32 * 0x10;
+                        pack_section_size_no_pad = pack_section_size + file.data.len() as u32;
                         pack_section_size += ((file.data.len() + 0xF) / 0x10) as u32 * 0x10;
                         
                         pair
