@@ -28,6 +28,12 @@ impl Nus3audioFile {
             &data[..]
         ).expect("Failed to parse file").1
     }
+
+    pub fn open<P: AsRef<std::path::Path>>(path: P) -> Result<Nus3audioFile, std::io::Error> {
+        Ok(Nus3audioFile::from_bytes(
+            &std::fs::read(path)?[..]
+        ))
+    }
 }
 
 impl AudioFile {
