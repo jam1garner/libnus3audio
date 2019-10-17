@@ -1,8 +1,8 @@
 use super::Nus3audioFile;
 use byteorder::{LittleEndian, WriteBytesExt};
-use std::mem::size_of;
-use std::collections::HashMap;
 use crc::crc32;
+use std::collections::HashMap;
+use std::mem::size_of;
 
 fn get_padding_amount(offset: usize) -> usize {
     ((0x18 - (offset as isize % 0x10)) % 0x10) as usize
@@ -10,29 +10,35 @@ fn get_padding_amount(offset: usize) -> usize {
 
 impl Nus3audioFile {
     pub fn calc_size(&self) -> usize {
-
         let nus3_size = "NUS3".len() + size_of::<u32>();
         let audi_size = "AUDIINDX".len() + (size_of::<u32>() * 2);
-        let tnid_size = "TNID".len() + size_of::<u32>()
-                        + (size_of::<u32>() * self.files.len());
+        let tnid_size = "TNID".len() + size_of::<u32>() + (size_of::<u32>() * self.files.len());
         let nmof_size = tnid_size;
-        let adof_size = "ADOF".len() + size_of::<u32>()
-                        + (size_of::<u32>() * self.files.len() * 2);
-        
-        let string_section_start = nus3_size + audi_size + tnid_size + nmof_size
-                                    + adof_size + "TNNM".len() + size_of::<u32>();
+        let adof_size = "ADOF".len() + size_of::<u32>() + (size_of::<u32>() * self.files.len() * 2);
+
+        let string_section_start = nus3_size
+            + audi_size
+            + tnid_size
+            + nmof_size
+            + adof_size
+            + "TNNM".len()
+            + size_of::<u32>();
 
         let mut string_section_size = 0u32;
         for file in self.files.iter() {
             string_section_size += file.name.len() as u32 + 1;
         }
 
-        let junk_pad = get_padding_amount(string_section_start + string_section_size as usize
-                                          + "JUNK".len() + size_of::<u32>());
+        let junk_pad = get_padding_amount(
+            string_section_start + string_section_size as usize + "JUNK".len() + size_of::<u32>(),
+        );
         let junk_size = "JUNK".len() + size_of::<u32>() + junk_pad;
 
-        let pack_section_start = string_section_start + string_section_size as usize
-                                    + junk_size + "PACK".len() + size_of::<u32>();
+        let pack_section_start = string_section_start
+            + string_section_size as usize
+            + junk_size
+            + "PACK".len()
+            + size_of::<u32>();
 
         let mut pack_section_size = 0u32;
         let mut pack_section_size_no_pad = 0u32;
@@ -40,35 +46,39 @@ impl Nus3audioFile {
             pack_section_size_no_pad = pack_section_size + file.data.len() as u32;
             pack_section_size += ((file.data.len() + 0xF) / 0x10) as u32 * 0x10;
         }
-        
-        pack_section_start + if self.files.len() == 1 {
-            pack_section_size_no_pad
-        } else {
-            pack_section_size
-        } as usize
+
+        pack_section_start
+            + if self.files.len() == 1 {
+                pack_section_size_no_pad
+            } else {
+                pack_section_size
+            } as usize
     }
-    
+
     pub fn write(&self, f: &mut Vec<u8>) {
         macro_rules! write {
             ($e:expr) => {
                 WriteImpl::write($e, f);
-            }
+            };
         }
-        
+
         // Offset calculation time
         let mut string_offsets: Vec<u32> = vec![];
-        let mut file_offsets: Vec<(u32,u32)> = vec![];
-        
+        let mut file_offsets: Vec<(u32, u32)> = vec![];
+
         let nus3_size = "NUS3".len() + size_of::<u32>();
         let audi_size = "AUDIINDX".len() + (size_of::<u32>() * 2);
-        let tnid_size = "TNID".len() + size_of::<u32>()
-                        + (size_of::<u32>() * self.files.len());
+        let tnid_size = "TNID".len() + size_of::<u32>() + (size_of::<u32>() * self.files.len());
         let nmof_size = tnid_size;
-        let adof_size = "ADOF".len() + size_of::<u32>()
-                        + (size_of::<u32>() * self.files.len() * 2);
-        
-        let string_section_start = nus3_size + audi_size + tnid_size + nmof_size
-                                    + adof_size + "TNNM".len() + size_of::<u32>();
+        let adof_size = "ADOF".len() + size_of::<u32>() + (size_of::<u32>() * self.files.len() * 2);
+
+        let string_section_start = nus3_size
+            + audi_size
+            + tnid_size
+            + nmof_size
+            + adof_size
+            + "TNNM".len()
+            + size_of::<u32>();
 
         let mut string_section_size = 0u32;
         for file in self.files.iter() {
@@ -76,12 +86,16 @@ impl Nus3audioFile {
             string_section_size += file.name.len() as u32 + 1;
         }
 
-        let junk_pad = get_padding_amount(string_section_start + string_section_size as usize
-                                          + "JUNK".len() + size_of::<u32>());
+        let junk_pad = get_padding_amount(
+            string_section_start + string_section_size as usize + "JUNK".len() + size_of::<u32>(),
+        );
         let junk_size = "JUNK".len() + size_of::<u32>() + junk_pad;
 
-        let pack_section_start = string_section_start + string_section_size as usize
-                                    + junk_size + "PACK".len() + size_of::<u32>();
+        let pack_section_start = string_section_start
+            + string_section_size as usize
+            + junk_size
+            + "PACK".len()
+            + size_of::<u32>();
 
         let mut pack_section_size_no_pad = 0u32;
         let mut pack_section_size = 0u32;
@@ -89,21 +103,22 @@ impl Nus3audioFile {
         let mut files_to_pack = vec![];
         for file in self.files.iter() {
             let hash = crc32::checksum_ieee(&file.data);
-            
-            let offset_pair = 
-                match existing_files.get(&hash) {
-                    Some(pair) => *pair,
-                    None => {
-                        let pair = (pack_section_start as u32 + pack_section_size,
-                                 file.data.len() as u32);
-                        existing_files.insert(hash, pair);
-                        files_to_pack.push(&file.data[..]);
-                        pack_section_size_no_pad = pack_section_size + file.data.len() as u32;
-                        pack_section_size += ((file.data.len() + 0xF) / 0x10) as u32 * 0x10;
-                        
-                        pair
-                    }
-                };
+
+            let offset_pair = match existing_files.get(&hash) {
+                Some(pair) => *pair,
+                None => {
+                    let pair = (
+                        pack_section_start as u32 + pack_section_size,
+                        file.data.len() as u32,
+                    );
+                    existing_files.insert(hash, pair);
+                    files_to_pack.push(&file.data[..]);
+                    pack_section_size_no_pad = pack_section_size + file.data.len() as u32;
+                    pack_section_size += ((file.data.len() + 0xF) / 0x10) as u32 * 0x10;
+
+                    pair
+                }
+            };
             file_offsets.push(offset_pair);
         }
 
@@ -121,12 +136,7 @@ impl Nus3audioFile {
         write!(self.files.len() as u32); // Number of files
         write!("TNID");
         write!(self.files.len() as u32 * 4);
-        write!(
-            self.files
-                .iter()
-                .map(|a| a.id as u32)
-                .collect::<Vec<u32>>()
-        );
+        write!(self.files.iter().map(|a| a.id as u32).collect::<Vec<u32>>());
         write!("NMOF");
         write!(self.files.len() as u32 * 4);
         write!(string_offsets);
@@ -147,8 +157,41 @@ impl Nus3audioFile {
         for file in files_to_pack.iter() {
             write!(&file[..]);
             if self.files.len() != 1 {
-                write!(vec![0u8; (0x10 - (file.len() % 0x10)) % 0x10 ]);
+                write!(vec![0u8; (0x10 - (file.len() % 0x10)) % 0x10]);
             }
+        }
+    }
+
+    pub fn calc_tonelabel_size(&self) -> usize {
+        8 + 8 * self.files.len()
+    }
+
+    pub fn write_tonelabel(&self, f: &mut Vec<u8>) {
+        macro_rules! write {
+            ($e:expr) => {
+                WriteImpl::write($e, f);
+            };
+        }
+
+        let files = &self.files;
+        let len = files.len();
+        let mut hash_ids = Vec::<u64>::with_capacity(len);
+
+        for audio_file in files.iter() {
+            hash_ids.push(
+                crc32::checksum_ieee(audio_file.name.to_lowercase().as_bytes()) as u64
+                    | (audio_file.name.len() as u64) << 32
+                    | (audio_file.id as u64) << 40,
+            );
+        }
+
+        hash_ids.sort_by(|a, b| (a & 0xffffffffff).partial_cmp(&(b & 0xffffffffff)).unwrap());
+
+        write!(1u32);
+        write!(len as u32);
+
+        for &h in hash_ids.iter() {
+            write!(h);
         }
     }
 }
@@ -158,15 +201,21 @@ trait WriteImpl {
     fn write(self, f: &mut Vec<u8>);
 }
 
+impl WriteImpl for u8 {
+    fn write(self, f: &mut Vec<u8>) {
+        f.push(self);
+    }
+}
+
 impl WriteImpl for u32 {
     fn write(self, f: &mut Vec<u8>) {
         f.write_u32::<LittleEndian>(self).unwrap();
     }
 }
 
-impl WriteImpl for u8 {
+impl WriteImpl for u64 {
     fn write(self, f: &mut Vec<u8>) {
-        f.push(self);
+        f.write_u64::<LittleEndian>(self).unwrap();
     }
 }
 
@@ -182,7 +231,10 @@ impl WriteImpl for &str {
     }
 }
 
-impl<T> WriteImpl for Vec<T> where T: WriteImpl + Copy, {
+impl<T> WriteImpl for Vec<T>
+where
+    T: WriteImpl + Copy,
+{
     fn write(self, f: &mut Vec<u8>) {
         for i in self {
             WriteImpl::write(i, f);
@@ -190,27 +242,36 @@ impl<T> WriteImpl for Vec<T> where T: WriteImpl + Copy, {
     }
 }
 
-impl<T> WriteImpl for &mut Iterator<Item=T> where T: WriteImpl, {
+impl<T> WriteImpl for &mut Iterator<Item = T>
+where
+    T: WriteImpl,
+{
     fn write(self, f: &mut Vec<u8>) {
         loop {
             match self.next() {
                 Some(b) => WriteImpl::write(b, f),
-                None => break
+                None => break,
             }
         }
     }
 }
 
-impl<T> WriteImpl for std::slice::Iter<'_, T> where T: WriteImpl + Clone, {
+impl<T> WriteImpl for std::slice::Iter<'_, T>
+where
+    T: WriteImpl + Clone,
+{
     fn write(self, f: &mut Vec<u8>) {
         for i in self {
             WriteImpl::write(i.clone(), f);
-        }        
+        }
     }
 }
 
 impl<T, T2> WriteImpl for (T, T2)
-    where T: WriteImpl, T2: WriteImpl {
+where
+    T: WriteImpl,
+    T2: WriteImpl,
+{
     fn write(self, f: &mut Vec<u8>) {
         WriteImpl::write(self.0, f);
         WriteImpl::write(self.1, f);
