@@ -1,11 +1,17 @@
 use super::Nus3audioFile;
-use byteorder::{LittleEndian, WriteBytesExt};
 use crc::crc32;
 use std::collections::HashMap;
 use std::mem::size_of;
+use binwrite::BinWrite;
 
 fn get_padding_amount(offset: usize) -> usize {
     ((0x18 - (offset as isize % 0x10)) % 0x10) as usize
+}
+
+#[derive(BinWrite)]
+struct PaddedFile {
+    #[binwrite(pad_after(0x10))]
+    file: Vec<u8>
 }
 
 impl Nus3audioFile {
@@ -56,12 +62,6 @@ impl Nus3audioFile {
     }
 
     pub fn write(&self, f: &mut Vec<u8>) {
-        macro_rules! write {
-            ($e:expr) => {
-                WriteImpl::write($e, f);
-            };
-        }
-
         // Offset calculation time
         let mut string_offsets: Vec<u32> = vec![];
         let mut file_offsets: Vec<(u32, u32)> = vec![];
@@ -112,7 +112,7 @@ impl Nus3audioFile {
                         file.data.len() as u32,
                     );
                     existing_files.insert(hash, pair);
-                    files_to_pack.push(&file.data[..]);
+                    files_to_pack.push(file);
                     pack_section_size_no_pad = pack_section_size + file.data.len() as u32;
                     pack_section_size += ((file.data.len() + 0xF) / 0x10) as u32 * 0x10;
 
@@ -129,36 +129,40 @@ impl Nus3audioFile {
         let filesize = pack_section_start as u32 + pack_section_size;
 
         // Actually write to file
-        write!("NUS3");
-        write!(filesize - nus3_size as u32);
-        write!("AUDIINDX");
-        write!(4u32); // Size of audiindx section
-        write!(self.files.len() as u32); // Number of files
-        write!("TNID");
-        write!(self.files.len() as u32 * 4);
-        write!(self.files.iter().map(|a| a.id as u32).collect::<Vec<u32>>());
-        write!("NMOF");
-        write!(self.files.len() as u32 * 4);
-        write!(string_offsets);
-        write!("ADOF");
-        write!(self.files.len() as u32 * 8);
-        write!(file_offsets);
-        write!("TNNM");
-        write!(string_section_size);
-        for file in self.files.iter() {
-            write!(&file.name[..]);
-            write!(0u8);
-        }
-        write!("JUNK");
-        write!(junk_pad as u32);
-        write!(vec![0u8; junk_pad]);
-        write!("PACK");
-        write!(pack_section_size);
-        for file in files_to_pack.iter() {
-            write!(&file[..]);
-            if self.files.len() != 1 {
-                write!(vec![0u8; (0x10 - (file.len() % 0x10)) % 0x10]);
-            }
+        &(
+            ("NUS3", filesize - nus3_size as u32),
+            ("AUDIINDX", 4u32, self.files.len() as u32),
+            (
+                "TNID",
+                self.files.len() as u32 * 4,
+                self.files.iter().map(|a| a.id as u32).collect::<Vec<u32>>()
+            ),
+            (
+                "NMOF",
+                self.files.len() as u32 * 4,
+                string_offsets
+            ),
+            (
+                "ADOF",
+                self.files.len() as u32 * 8,
+                file_offsets
+            ),
+            (
+                "TNNM",
+                string_section_size,
+                self.files.iter().map(|file| (&file.name[..], 0u8)).collect::<Vec<_>>()
+            ),
+            (
+                "JUNK", junk_pad as u32, vec![0u8; junk_pad]
+            ),
+            (
+                "PACK", pack_section_size
+            )
+        ).write(f).unwrap();
+        if self.files.len() == 1 {
+            BinWrite::write(&self.files[0].data[..], f).unwrap();
+        } else {
+            BinWrite::write(&files_to_pack, f).unwrap();
         }
     }
 
@@ -167,12 +171,6 @@ impl Nus3audioFile {
     }
 
     pub fn write_tonelabel(&self, f: &mut Vec<u8>) {
-        macro_rules! write {
-            ($e:expr) => {
-                WriteImpl::write($e, f);
-            };
-        }
-
         let files = &self.files;
         let len = files.len();
         let mut hash_ids = Vec::<u64>::with_capacity(len);
@@ -187,93 +185,11 @@ impl Nus3audioFile {
 
         hash_ids.sort_by(|a, b| (a & 0xffffffffff).partial_cmp(&(b & 0xffffffffff)).unwrap());
 
-        write!(1u32);
-        write!(len as u32);
-
-        for &h in hash_ids.iter() {
-            write!(h);
-        }
+        &(
+            1u32,
+            len as u32,
+            hash_ids
+        ).write(f);
     }
 }
 
-// WriteImpl trait for ezpz clean file writing
-trait WriteImpl {
-    fn write(self, f: &mut Vec<u8>);
-}
-
-impl WriteImpl for u8 {
-    fn write(self, f: &mut Vec<u8>) {
-        f.push(self);
-    }
-}
-
-impl WriteImpl for u32 {
-    fn write(self, f: &mut Vec<u8>) {
-        f.write_u32::<LittleEndian>(self).unwrap();
-    }
-}
-
-impl WriteImpl for u64 {
-    fn write(self, f: &mut Vec<u8>) {
-        f.write_u64::<LittleEndian>(self).unwrap();
-    }
-}
-
-impl WriteImpl for &[u8] {
-    fn write(self, f: &mut Vec<u8>) {
-        f.extend_from_slice(self);
-    }
-}
-
-impl WriteImpl for &str {
-    fn write(self, f: &mut Vec<u8>) {
-        f.extend_from_slice(self.as_bytes());
-    }
-}
-
-impl<T> WriteImpl for Vec<T>
-where
-    T: WriteImpl + Copy,
-{
-    fn write(self, f: &mut Vec<u8>) {
-        for i in self {
-            WriteImpl::write(i, f);
-        }
-    }
-}
-
-impl<T> WriteImpl for &mut Iterator<Item = T>
-where
-    T: WriteImpl,
-{
-    fn write(self, f: &mut Vec<u8>) {
-        loop {
-            match self.next() {
-                Some(b) => WriteImpl::write(b, f),
-                None => break,
-            }
-        }
-    }
-}
-
-impl<T> WriteImpl for std::slice::Iter<'_, T>
-where
-    T: WriteImpl + Clone,
-{
-    fn write(self, f: &mut Vec<u8>) {
-        for i in self {
-            WriteImpl::write(i.clone(), f);
-        }
-    }
-}
-
-impl<T, T2> WriteImpl for (T, T2)
-where
-    T: WriteImpl,
-    T2: WriteImpl,
-{
-    fn write(self, f: &mut Vec<u8>) {
-        WriteImpl::write(self.0, f);
-        WriteImpl::write(self.1, f);
-    }
-}

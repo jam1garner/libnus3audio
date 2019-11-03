@@ -14,9 +14,13 @@ pub struct Nus3audioFile {
 }
 
 #[derive(Debug)]
+#[derive(binwrite::BinWrite)]
 pub struct AudioFile {
+    #[binwrite(ignore)]
     pub id: u32,
+    #[binwrite(ignore)]
     pub name: String,
+    #[binwrite(align_after(0x10))]
     pub data: Vec<u8>,
 }
 
