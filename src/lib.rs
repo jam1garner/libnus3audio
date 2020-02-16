@@ -8,12 +8,14 @@ mod internal;
 mod parser;
 mod writer;
 
-#[derive(Debug)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Nus3audioFile {
     pub files: Vec<AudioFile>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 #[derive(binwrite::BinWrite)]
 pub struct AudioFile {
     #[binwrite(ignore)]
