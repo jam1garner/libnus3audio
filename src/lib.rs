@@ -37,6 +37,12 @@ impl Nus3audioFile {
             .1
     }
 
+    pub fn try_from_bytes(data: &[u8]) -> Option<Nus3audioFile> {
+        parser::take_file(&data[..])
+            .map(|(_, file)| file)
+            .ok()
+    }
+
     pub fn open<P: AsRef<std::path::Path>>(path: P) -> Result<Nus3audioFile, std::io::Error> {
         Ok(Nus3audioFile::from_bytes(&std::fs::read(path)?[..]))
     }
