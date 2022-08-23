@@ -10,12 +10,12 @@ mod writer;
 
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Nus3audioFile {
     pub files: Vec<AudioFile>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[derive(binwrite::BinWrite)]
 pub struct AudioFile {
     #[binwrite(ignore)]
